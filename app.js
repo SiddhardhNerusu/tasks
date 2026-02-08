@@ -11,7 +11,6 @@ const USER_META = {
   me: { name: "Siddu" },
   partner: { name: "Sumi" },
 };
-const REACTIONS = ["Proud", "Great", "Support"];
 const CALENDAR_VIEW_ORDER = ["week", "month", "year"];
 const PLACEHOLDER_TEXT = {
   me: "e.g. gym, be handsome, be strong",
@@ -22,6 +21,8 @@ const SWIPE_MAX = 108;
 const SWIPE_DELETE_THRESHOLD = 84;
 const DEFAULT_MORNING_REMINDER_TIME = "09:00";
 const TASK_REMINDER_LEAD_MINUTES = 10;
+const MAX_REACTION_MESSAGE_CHARS = 120;
+const MAX_REACTION_IMAGE_BYTES = 900 * 1024;
 const LEAVE_GUARD_MESSAGES = [
   "are you sure? this will make you more productive",
   "are you reallyyyyy sure",
@@ -59,6 +60,9 @@ const ui = {
   morningReminderTimeInput: document.getElementById("morningReminderTimeInput"),
   enablePushBtn: document.getElementById("enablePushBtn"),
   pushStatusText: document.getElementById("pushStatusText"),
+  reactionImageOverlay: document.getElementById("reactionImageOverlay"),
+  reactionImage: document.getElementById("reactionImage"),
+  reactionImageCaption: document.getElementById("reactionImageCaption"),
   toast: document.getElementById("toast"),
 };
 
@@ -127,8 +131,23 @@ function bindEvents() {
       return;
     }
 
-    if (action === "react-task") {
-      reactToTask(actionEl.dataset.owner, actionEl.dataset.taskId, actionEl.dataset.emoji);
+    if (action === "send-reaction-message") {
+      sendReactionMessage(actionEl.dataset.owner, actionEl.dataset.taskId);
+      return;
+    }
+
+    if (action === "open-reaction-image-picker") {
+      openReactionImagePicker(actionEl);
+      return;
+    }
+
+    if (action === "view-reaction-image") {
+      openReactionImage(actionEl.dataset.owner, actionEl.dataset.taskId);
+      return;
+    }
+
+    if (action === "close-reaction-image") {
+      closeReactionImage();
       return;
     }
 
@@ -209,11 +228,27 @@ function bindEvents() {
     }
   });
 
+  ui.reactionImageOverlay.addEventListener("click", (event) => {
+    if (event.target === ui.reactionImageOverlay) {
+      closeReactionImage();
+    }
+  });
+
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeDayPreview();
       closeStatsModal();
       closeSettingsModal();
+      closeReactionImage();
+      return;
+    }
+
+    if (event.key === "Enter" && event.target.classList.contains("reaction-message-input")) {
+      event.preventDefault();
+      const button = event.target.closest(".task-actions").querySelector("[data-action='send-reaction-message']");
+      if (button) {
+        sendReactionMessage(button.dataset.owner, button.dataset.taskId);
+      }
     }
   });
 
@@ -334,7 +369,7 @@ function normalizeTask(task) {
       createdAt: nowIso,
       updatedAt: nowIso,
       deletedAt: null,
-      reactions: { me: null, partner: null },
+      reactions: createEmptyReactions(),
       reminderTime: null,
       lastReminderDate: null,
     };
@@ -361,17 +396,81 @@ function normalizeTask(task) {
     createdAt,
     updatedAt,
     deletedAt: typeof task.deletedAt === "string" ? task.deletedAt : null,
-    reactions: {
-      me: normalizeReaction(task.reactions && task.reactions.me),
-      partner: normalizeReaction(task.reactions && task.reactions.partner),
-    },
+    reactions: normalizeReactions(task.reactions),
     reminderTime: normalizeReminderTime(task.reminderTime),
     lastReminderDate: typeof task.lastReminderDate === "string" ? task.lastReminderDate : null,
   };
 }
 
-function normalizeReaction(reaction) {
-  return REACTIONS.includes(reaction) ? reaction : null;
+function normalizeReactions(reactions) {
+  return {
+    me: normalizeReactionEntry(reactions && reactions.me),
+    partner: normalizeReactionEntry(reactions && reactions.partner),
+  };
+}
+
+function createEmptyReactions() {
+  return {
+    me: createEmptyReactionEntry(),
+    partner: createEmptyReactionEntry(),
+  };
+}
+
+function createEmptyReactionEntry() {
+  return {
+    message: null,
+    image: null,
+    sentAt: null,
+    imageConsumedAt: null,
+  };
+}
+
+function normalizeReactionEntry(reaction) {
+  if (typeof reaction === "string") {
+    return {
+      message: normalizeReactionMessage(reaction),
+      image: null,
+      sentAt: null,
+      imageConsumedAt: null,
+    };
+  }
+
+  if (!reaction || typeof reaction !== "object" || Array.isArray(reaction)) {
+    return createEmptyReactionEntry();
+  }
+
+  return {
+    message: normalizeReactionMessage(reaction.message),
+    image: normalizeReactionImage(reaction.image),
+    sentAt: typeof reaction.sentAt === "string" ? reaction.sentAt : null,
+    imageConsumedAt: typeof reaction.imageConsumedAt === "string" ? reaction.imageConsumedAt : null,
+  };
+}
+
+function normalizeReactionMessage(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const text = cleanText(value).slice(0, MAX_REACTION_MESSAGE_CHARS);
+  return text || null;
+}
+
+function normalizeReactionImage(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const dataUrl = typeof value.dataUrl === "string" ? value.dataUrl : null;
+  if (!dataUrl || !dataUrl.startsWith("data:image/")) {
+    return null;
+  }
+
+  return {
+    dataUrl,
+    mimeType: typeof value.mimeType === "string" ? value.mimeType : "image/jpeg",
+    sentAt: typeof value.sentAt === "string" ? value.sentAt : null,
+  };
 }
 
 function normalizeReminderTime(value) {
@@ -534,7 +633,7 @@ function addTask() {
     createdAt: nowIso,
     updatedAt: nowIso,
     deletedAt: null,
-    reactions: { me: null, partner: null },
+    reactions: createEmptyReactions(),
     reminderTime,
     lastReminderDate: null,
   });
@@ -571,8 +670,7 @@ function toggleTask(owner, taskId) {
   task.updatedAt = nowIso;
 
   if (!task.done) {
-    task.reactions.me = null;
-    task.reactions.partner = null;
+    task.reactions = createEmptyReactions();
   }
 
   markCheckIn(owner);
@@ -610,7 +708,7 @@ function deleteTask(owner, taskId) {
   showToast("Task cleared");
 }
 
-function reactToTask(owner, taskId, emoji) {
+function sendReactionMessage(owner, taskId) {
   const day = getDay();
   if (day.closed) {
     return;
@@ -622,16 +720,184 @@ function reactToTask(owner, taskId, emoji) {
   }
 
   const task = day.users[owner].tasks.find((item) => item.id === taskId && !item.deletedAt);
-
-  if (!task || !task.done || !REACTIONS.includes(emoji)) {
+  if (!task || !task.done) {
     return;
   }
 
-  task.reactions[active] = task.reactions[active] === emoji ? null : emoji;
-  task.updatedAt = new Date().toISOString();
+  const input = document.querySelector(
+    `.reaction-message-input[data-owner="${owner}"][data-task-id="${taskId}"]`
+  );
+  const message = normalizeReactionMessage(input ? input.value : "");
+  if (!message) {
+    showToast("Type a reaction message first.");
+    return;
+  }
+
+  const reaction = ensureReactionEntry(task, active);
+  const nowIso = new Date().toISOString();
+  reaction.message = message;
+  reaction.sentAt = nowIso;
+  task.updatedAt = nowIso;
+
+  if (input) {
+    input.value = "";
+  }
+
   markCheckIn(active);
   saveState();
   render();
+  showToast("Reaction sent.");
+}
+
+function openReactionImagePicker(button) {
+  const actions = button.closest(".task-actions");
+  if (!actions) {
+    return;
+  }
+
+  const input = actions.querySelector(".reaction-image-input");
+  if (!input) {
+    return;
+  }
+
+  input.click();
+}
+
+async function handleReactionImageSelect(owner, taskId, fileInput) {
+  const file = fileInput.files && fileInput.files[0];
+  fileInput.value = "";
+
+  if (!file) {
+    return;
+  }
+
+  const day = getDay();
+  if (day.closed) {
+    showToast("This day is closed.");
+    return;
+  }
+
+  const active = state.profile;
+  if (owner === active) {
+    return;
+  }
+
+  const task = day.users[owner].tasks.find((item) => item.id === taskId && !item.deletedAt);
+  if (!task || !task.done) {
+    showToast("Task must be completed first.");
+    return;
+  }
+
+  if (!file.type.startsWith("image/")) {
+    showToast("Only image files are supported.");
+    return;
+  }
+
+  if (file.size > MAX_REACTION_IMAGE_BYTES) {
+    showToast("Image too large. Keep it under 900 KB.");
+    return;
+  }
+
+  const dataUrl = await readFileAsDataUrl(file);
+  if (!dataUrl || dataUrl.length > MAX_REACTION_IMAGE_BYTES * 2) {
+    showToast("Image could not be processed.");
+    return;
+  }
+
+  const reaction = ensureReactionEntry(task, active);
+  const nowIso = new Date().toISOString();
+  reaction.image = {
+    dataUrl,
+    mimeType: file.type,
+    sentAt: nowIso,
+  };
+  reaction.imageConsumedAt = null;
+  reaction.sentAt = nowIso;
+  task.updatedAt = nowIso;
+
+  markCheckIn(active);
+  saveState();
+  render();
+  showToast("Photo reaction sent.");
+}
+
+function openReactionImage(owner, taskId) {
+  const day = getDay();
+  const active = state.profile;
+  if (owner !== active) {
+    return;
+  }
+
+  const task = day.users[owner].tasks.find((item) => item.id === taskId && !item.deletedAt);
+  if (!task || !task.done) {
+    return;
+  }
+
+  const incomingUser = getPartner(owner);
+  const incomingReaction = ensureReactionEntry(task, incomingUser);
+  if (!incomingReaction.image || !incomingReaction.image.dataUrl) {
+    return;
+  }
+
+  ui.reactionImage.src = incomingReaction.image.dataUrl;
+  if (incomingReaction.message) {
+    ui.reactionImageCaption.textContent = `${USER_META[incomingUser].name}: ${incomingReaction.message}`;
+  } else {
+    ui.reactionImageCaption.textContent = `${USER_META[incomingUser].name} sent a photo reaction`;
+  }
+  ui.reactionImageOverlay.hidden = false;
+  syncModalState();
+
+  incomingReaction.image = null;
+  incomingReaction.imageConsumedAt = new Date().toISOString();
+  task.updatedAt = new Date().toISOString();
+  saveState();
+  render();
+}
+
+function closeReactionImage() {
+  if (ui.reactionImageOverlay.hidden) {
+    return;
+  }
+
+  ui.reactionImageOverlay.hidden = true;
+  ui.reactionImage.removeAttribute("src");
+  ui.reactionImageCaption.textContent = "";
+  syncModalState();
+}
+
+function ensureReactionEntry(task, userId) {
+  if (!task.reactions || typeof task.reactions !== "object") {
+    task.reactions = createEmptyReactions();
+  }
+
+  if (!task.reactions[userId]) {
+    task.reactions[userId] = createEmptyReactionEntry();
+  }
+
+  task.reactions[userId] = normalizeReactionEntry(task.reactions[userId]);
+  return task.reactions[userId];
+}
+
+function getReactionEntry(task, userId) {
+  if (!task || !task.reactions || typeof task.reactions !== "object") {
+    return createEmptyReactionEntry();
+  }
+
+  return normalizeReactionEntry(task.reactions[userId]);
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      resolve(typeof reader.result === "string" ? reader.result : null);
+    };
+
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
 }
 
 function render() {
@@ -991,12 +1257,25 @@ function renderTaskList(root, tasks, owner, dayClosed) {
       }
     }
 
-    const incomingReaction = task.reactions[getPartner(owner)];
-    if (task.done && incomingReaction) {
-      const reaction = document.createElement("span");
-      reaction.className = "task-reaction";
-      reaction.textContent = `${incomingReaction} seen`;
-      meta.appendChild(reaction);
+    const incomingReaction = getReactionEntry(task, getPartner(owner));
+    if (task.done && owner === state.profile) {
+      if (incomingReaction.message) {
+        const reaction = document.createElement("span");
+        reaction.className = "task-reaction";
+        reaction.textContent = `${USER_META[getPartner(owner)].name}: ${incomingReaction.message}`;
+        meta.appendChild(reaction);
+      }
+
+      if (incomingReaction.image && incomingReaction.image.dataUrl) {
+        const viewPhoto = document.createElement("button");
+        viewPhoto.type = "button";
+        viewPhoto.className = "reaction-view-btn";
+        viewPhoto.dataset.action = "view-reaction-image";
+        viewPhoto.dataset.owner = owner;
+        viewPhoto.dataset.taskId = task.id;
+        viewPhoto.textContent = "View photo";
+        meta.appendChild(viewPhoto);
+      }
     }
 
     if (meta.children.length) {
@@ -1019,23 +1298,65 @@ function renderTaskList(root, tasks, owner, dayClosed) {
       toggle.disabled = dayClosed;
       actions.appendChild(toggle);
     } else if (task.done) {
-      REACTIONS.forEach((reactionLabel) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "reaction-btn";
+      const myReaction = getReactionEntry(task, state.profile);
 
-        if (task.reactions[state.profile] === reactionLabel) {
-          button.classList.add("active");
-        }
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "reaction-message-input";
+      input.maxLength = MAX_REACTION_MESSAGE_CHARS;
+      input.placeholder = "Type your reaction";
+      input.dataset.owner = owner;
+      input.dataset.taskId = task.id;
+      input.disabled = dayClosed;
+      actions.appendChild(input);
 
-        button.dataset.action = "react-task";
-        button.dataset.owner = owner;
-        button.dataset.taskId = task.id;
-        button.dataset.emoji = reactionLabel;
-        button.textContent = reactionLabel;
-        button.disabled = dayClosed;
-        actions.appendChild(button);
+      const send = document.createElement("button");
+      send.type = "button";
+      send.className = "reaction-btn";
+      send.dataset.action = "send-reaction-message";
+      send.dataset.owner = owner;
+      send.dataset.taskId = task.id;
+      send.textContent = "Send";
+      send.disabled = dayClosed;
+      actions.appendChild(send);
+
+      const photoWrap = document.createElement("span");
+      photoWrap.className = "reaction-photo-wrap";
+
+      const photo = document.createElement("button");
+      photo.type = "button";
+      photo.className = "reaction-btn";
+      photo.dataset.action = "open-reaction-image-picker";
+      photo.dataset.owner = owner;
+      photo.dataset.taskId = task.id;
+      photo.textContent = "Photo";
+      photo.disabled = dayClosed;
+      photoWrap.appendChild(photo);
+
+      const imageInput = document.createElement("input");
+      imageInput.type = "file";
+      imageInput.accept = "image/*";
+      imageInput.className = "reaction-image-input";
+      imageInput.disabled = dayClosed;
+      imageInput.addEventListener("change", () => {
+        void handleReactionImageSelect(owner, task.id, imageInput);
       });
+      photoWrap.appendChild(imageInput);
+      actions.appendChild(photoWrap);
+
+      if (myReaction.message) {
+        const sentLabel = document.createElement("span");
+        sentLabel.className = "reaction-note";
+        sentLabel.textContent = "Message sent";
+        actions.appendChild(sentLabel);
+      }
+
+      if (myReaction.image) {
+        const sentPhoto = document.createElement("span");
+        sentPhoto.className = "reaction-note";
+        sentPhoto.textContent = "Photo attached";
+        actions.appendChild(sentPhoto);
+      }
     }
 
     shell.appendChild(main);
@@ -1206,7 +1527,10 @@ function closeStatsModal() {
 }
 
 function syncModalState() {
-  const anyModalVisible = !ui.previewOverlay.hidden || !ui.statsOverlay.hidden || !ui.settingsOverlay.hidden;
+  const anyModalVisible = !ui.previewOverlay.hidden
+    || !ui.statsOverlay.hidden
+    || !ui.settingsOverlay.hidden
+    || !ui.reactionImageOverlay.hidden;
   document.body.classList.toggle("modal-open", anyModalVisible);
 }
 
@@ -1735,6 +2059,7 @@ function checkForNewDay() {
   closeDayPreview();
   closeStatsModal();
   closeSettingsModal();
+  closeReactionImage();
 
   const active = state.profile;
   const previousDay = state.days[previousDateKey];

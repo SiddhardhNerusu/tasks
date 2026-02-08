@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Our Daily Milestones</title>
+  <title>my baby waby</title>
 
   <meta name="theme-color" content="#1fd3e8" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Our Day" />
+  <meta name="apple-mobile-web-app-title" content="my baby waby" />
 
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/love-cover-180.png" />
@@ -135,6 +135,17 @@
         </div>
         <button id="saveSettingsBtn" class="primary-btn settings-save-btn" data-action="save-settings">Save</button>
       </div>
+    </article>
+  </div>
+
+  <div id="reactionImageOverlay" class="preview-overlay" hidden>
+    <article class="preview-card reaction-image-card" role="dialog" aria-modal="true" aria-labelledby="reactionImageCaption">
+      <button class="preview-close" data-action="close-reaction-image" aria-label="Close reaction image">✕</button>
+      <p id="reactionImageCaption" class="preview-date"></p>
+      <div class="reaction-image-wrap">
+        <img id="reactionImage" class="reaction-image" alt="Reaction" />
+      </div>
+      <p class="preview-hint">This reaction photo is view-once and is now removed.</p>
     </article>
   </div>
 

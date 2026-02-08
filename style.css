@@ -675,6 +675,11 @@ h2 {
   padding: 3px 8px;
 }
 
+.task-reaction {
+  max-width: 100%;
+  line-height: 1.25;
+}
+
 .countdown-chip {
   font-size: 0.74rem;
   color: #5b493d;
@@ -725,6 +730,43 @@ h2 {
   background: var(--accent-soft);
 }
 
+.reaction-message-input {
+  border: 1px solid #dccbbf;
+  border-radius: 999px;
+  background: #f8f0e8;
+  color: #604839;
+  min-width: 120px;
+  flex: 1 1 140px;
+  padding: 7px 10px;
+  font-size: 0.82rem;
+}
+
+.reaction-photo-wrap {
+  position: relative;
+}
+
+.reaction-image-input {
+  display: none;
+}
+
+.reaction-note {
+  font-size: 0.73rem;
+  color: #6f5848;
+  background: #eadbcf;
+  border-radius: 999px;
+  padding: 5px 9px;
+}
+
+.reaction-view-btn {
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: #604737;
+  font-size: 0.73rem;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
 .task-item.done .task-shell {
   box-shadow: inset 0 0 0 1px rgba(94, 79, 67, 0.1);
 }
@@ -768,6 +810,24 @@ h2 {
 
 .stats-card {
   max-width: 520px;
+}
+
+.reaction-image-card {
+  max-width: 420px;
+}
+
+.reaction-image-wrap {
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #e5d7cb;
+  background: #f7efe7;
+}
+
+.reaction-image {
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  display: block;
 }
 
 .stats-body {

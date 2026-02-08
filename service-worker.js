@@ -1,4 +1,4 @@
-const CACHE_NAME = "our-day-cache-v10";
+const CACHE_NAME = "our-day-cache-v11";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -61,6 +61,58 @@ self.addEventListener("fetch", (event) => {
         .catch(() => cached);
 
       return cached || networkFetch;
+    })
+  );
+});
+
+self.addEventListener("push", (event) => {
+  let payload = {};
+
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch (_error) {
+      payload = {};
+    }
+  }
+
+  const title = typeof payload.title === "string" && payload.title ? payload.title : "Our Daily Milestones";
+  const body = typeof payload.body === "string" && payload.body ? payload.body : "Open your shared board.";
+  const url = typeof payload.url === "string" && payload.url ? payload.url : "/";
+  const tag = typeof payload.tag === "string" && payload.tag ? payload.tag : "our-day-notification";
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      tag,
+      icon: "./icons/love-cover-192.png",
+      badge: "./icons/love-cover-192.png",
+      data: { url },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data && event.notification.data.url
+    ? event.notification.data.url
+    : "/";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+      for (let i = 0; i < windowClients.length; i += 1) {
+        const client = windowClients[i];
+        if (client.url.includes(self.location.origin) && "focus" in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+
+      return null;
     })
   );
 });

@@ -112,6 +112,12 @@ body.theme-sumi {
   box-shadow: var(--shadow);
 }
 
+.hero-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .today-date {
   margin: 0;
   font-size: 1.02rem;
@@ -156,6 +162,78 @@ body.theme-sumi {
 .profile-btn.active {
   background: #fffdf9;
   box-shadow: 0 2px 8px rgba(109, 86, 69, 0.14);
+}
+
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d8c9bc;
+  border-radius: 999px;
+  background: #f7efe7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.cog-mark {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #6b5547;
+  border-radius: 999px;
+  display: inline-block;
+  position: relative;
+}
+
+.cog-mark::before,
+.cog-mark::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 18px;
+  border-radius: 2px;
+  background: #6b5547;
+  transform-origin: center;
+}
+
+.cog-mark::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.cog-mark::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.settings-card {
+  max-width: 420px;
+}
+
+.settings-body {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #664f41;
+}
+
+.settings-time-input {
+  width: 132px;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.settings-save-btn {
+  width: fit-content;
 }
 
 .section-head {

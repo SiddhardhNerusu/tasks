@@ -1,4 +1,6 @@
 const API_STATE_ENDPOINT = "/api/state";
+const API_PUSH_PUBLIC_KEY_ENDPOINT = "/api/push/public-key";
+const API_PUSH_SUBSCRIBE_ENDPOINT = "/api/push/subscribe";
 const REMOTE_PUSH_DEBOUNCE_MS = 320;
 const REMOTE_POLL_MS = 4500;
 
@@ -17,6 +19,13 @@ const PLACEHOLDER_TEXT = {
 
 const SWIPE_MAX = 108;
 const SWIPE_DELETE_THRESHOLD = 84;
+const DEFAULT_MORNING_REMINDER_TIME = "09:00";
+const TASK_REMINDER_LEAD_MINUTES = 10;
+const LEAVE_GUARD_MESSAGES = [
+  "are you sure? this will make you more productive",
+  "are you reallyyyyy sure",
+  "are you reallyyyyyyyyyyyyyyyyy sure",
+];
 
 const ui = {
   todayDate: document.getElementById("todayDate"),
@@ -45,6 +54,10 @@ const ui = {
   previewBody: document.getElementById("previewBody"),
   statsOverlay: document.getElementById("statsOverlay"),
   statsBody: document.getElementById("statsBody"),
+  settingsOverlay: document.getElementById("settingsOverlay"),
+  morningReminderTimeInput: document.getElementById("morningReminderTimeInput"),
+  enablePushBtn: document.getElementById("enablePushBtn"),
+  pushStatusText: document.getElementById("pushStatusText"),
   toast: document.getElementById("toast"),
 };
 
@@ -59,6 +72,9 @@ let remotePollTimer = null;
 let remoteSyncInFlight = false;
 let remoteDirty = false;
 let hasShownSyncUnavailableToast = false;
+let swRegistration = null;
+let pushSubscription = null;
+let leaveGuardAttempts = 0;
 
 initApp();
 
@@ -69,6 +85,8 @@ async function initApp() {
   renderWatermarks();
   bindEvents();
   render();
+  swRegistration = await registerServiceWorker();
+  await syncPushSubscription({ allowSubscribe: false });
   startCountdownTicker();
   updateCountdownChips();
   startRemoteSyncWatcher();
@@ -129,6 +147,26 @@ function bindEvents() {
 
     if (action === "close-stats") {
       closeStatsModal();
+      return;
+    }
+
+    if (action === "open-settings") {
+      openSettingsModal();
+      return;
+    }
+
+    if (action === "close-settings") {
+      closeSettingsModal();
+      return;
+    }
+
+    if (action === "save-settings") {
+      void saveSettingsFromModal();
+      return;
+    }
+
+    if (action === "enable-push") {
+      void enablePushNotifications();
     }
   });
 
@@ -145,12 +183,6 @@ function bindEvents() {
     if (ui.reminderToggle.checked) {
       if (!ui.taskTimeInput.value) {
         ui.taskTimeInput.value = buildDefaultReminderTime();
-      }
-
-      if ("Notification" in window && Notification.permission === "default") {
-        Notification.requestPermission().catch(() => {
-          // Ignore permission errors.
-        });
       }
     }
 
@@ -169,10 +201,17 @@ function bindEvents() {
     }
   });
 
+  ui.settingsOverlay.addEventListener("click", (event) => {
+    if (event.target === ui.settingsOverlay) {
+      closeSettingsModal();
+    }
+  });
+
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeDayPreview();
       closeStatsModal();
+      closeSettingsModal();
     }
   });
 
@@ -189,6 +228,7 @@ function bindEvents() {
     checkForNewDay();
     checkReminderAlerts();
     pullRemoteState({ force: true });
+    void syncPushSubscription({ allowSubscribe: false });
   });
 
   document.addEventListener("visibilitychange", () => {
@@ -196,8 +236,11 @@ function bindEvents() {
       checkForNewDay();
       checkReminderAlerts();
       pullRemoteState({ force: true });
+      void syncPushSubscription({ allowSubscribe: false });
     }
   });
+
+  window.addEventListener("beforeunload", handleBeforeUnload);
 }
 
 async function loadState() {
@@ -206,10 +249,11 @@ async function loadState() {
 
 function createInitialState() {
   return {
-    version: 4,
+    version: 5,
     profile: "me",
     preferences: {
       calendarView: "week",
+      morningReminderTimes: buildDefaultMorningReminderTimes(),
     },
     days: {},
   };
@@ -226,6 +270,13 @@ function normalizeState(value) {
 
   const calendarView = value.preferences && value.preferences.calendarView;
   normalized.preferences.calendarView = CALENDAR_VIEW_ORDER.includes(calendarView) ? calendarView : "week";
+  normalized.preferences.morningReminderTimes = normalizeMorningReminderTimes(
+    value.preferences && value.preferences.morningReminderTimes
+  );
+
+  if (value.settings && typeof value.settings === "object") {
+    normalized.preferences.morningReminderTimes = normalizeMorningReminderTimes(value.settings.morningReminderTimes);
+  }
 
   if (value.days && typeof value.days === "object") {
     Object.keys(value.days).forEach((dateKey) => {
@@ -251,6 +302,7 @@ function normalizeDay(value, dateKey) {
     const target = day.users[userId];
 
     target.checkedInAt = typeof source.checkedInAt === "string" ? source.checkedInAt : null;
+    target.lastMorningReminderDate = typeof source.lastMorningReminderDate === "string" ? source.lastMorningReminderDate : null;
 
     const sourceTasks = Array.isArray(source.tasks) ? source.tasks : [];
     target.tasks = sourceTasks
@@ -332,10 +384,32 @@ function createDay(dateKey) {
     closed: false,
     closedAt: null,
     users: {
-      me: { checkedInAt: null, tasks: [] },
-      partner: { checkedInAt: null, tasks: [] },
+      me: { checkedInAt: null, lastMorningReminderDate: null, tasks: [] },
+      partner: { checkedInAt: null, lastMorningReminderDate: null, tasks: [] },
     },
   };
+}
+
+function buildDefaultMorningReminderTimes() {
+  return {
+    me: DEFAULT_MORNING_REMINDER_TIME,
+    partner: DEFAULT_MORNING_REMINDER_TIME,
+  };
+}
+
+function normalizeMorningReminderTimes(value) {
+  const defaults = buildDefaultMorningReminderTimes();
+
+  if (!value || typeof value !== "object") {
+    return defaults;
+  }
+
+  USERS.forEach((userId) => {
+    const candidate = normalizeReminderTime(value[userId]);
+    defaults[userId] = candidate || DEFAULT_MORNING_REMINDER_TIME;
+  });
+
+  return defaults;
 }
 
 function ensureDaySpace(options = {}) {
@@ -404,6 +478,7 @@ function switchProfile(profile) {
   saveState({ sync: false });
   render();
   checkReminderAlerts();
+  void syncPushSubscription({ allowSubscribe: false });
 }
 
 function toggleCalendarView() {
@@ -465,6 +540,7 @@ function addTask() {
 
   saveState();
   render();
+  leaveGuardAttempts = 0;
 }
 
 function toggleTask(owner, taskId) {
@@ -558,6 +634,7 @@ function render() {
   const day = getDay();
 
   renderHeader(day);
+  renderSettings();
   renderComposer(day);
   renderCalendar();
   renderTasks(day);
@@ -567,6 +644,53 @@ function render() {
 
 function renderWatermarks() {
   ui.watermarkLayer.innerHTML = "";
+}
+
+function getMorningReminderTime(userId) {
+  const times = state.preferences.morningReminderTimes || buildDefaultMorningReminderTimes();
+  return times[userId] || DEFAULT_MORNING_REMINDER_TIME;
+}
+
+function setMorningReminderTime(userId, reminderTime) {
+  if (!state.preferences.morningReminderTimes || typeof state.preferences.morningReminderTimes !== "object") {
+    state.preferences.morningReminderTimes = buildDefaultMorningReminderTimes();
+  }
+
+  state.preferences.morningReminderTimes[userId] = reminderTime;
+}
+
+function renderSettings() {
+  const active = state.profile;
+  ui.morningReminderTimeInput.value = getMorningReminderTime(active);
+
+  if (!isPushSupported()) {
+    ui.enablePushBtn.disabled = true;
+    ui.enablePushBtn.textContent = "Push Unsupported";
+    ui.pushStatusText.textContent = "Push notifications are not supported on this device.";
+    return;
+  }
+
+  const permission = Notification.permission;
+  const linked = Boolean(pushSubscription);
+  ui.enablePushBtn.disabled = false;
+  ui.enablePushBtn.textContent = linked ? "Refresh Push Link" : "Enable Push";
+
+  if (linked) {
+    ui.pushStatusText.textContent = `Push linked for ${USER_META[active].name}.`;
+    return;
+  }
+
+  if (permission === "denied") {
+    ui.pushStatusText.textContent = "Push blocked in browser settings.";
+    return;
+  }
+
+  if (permission === "granted") {
+    ui.pushStatusText.textContent = "Push ready. Tap to finish linking.";
+    return;
+  }
+
+  ui.pushStatusText.textContent = "Push not connected";
 }
 
 function renderHeader(day) {
@@ -1030,6 +1154,38 @@ function closeDayPreview() {
   syncModalState();
 }
 
+function openSettingsModal() {
+  renderSettings();
+  ui.settingsOverlay.hidden = false;
+  syncModalState();
+}
+
+function closeSettingsModal() {
+  if (ui.settingsOverlay.hidden) {
+    return;
+  }
+
+  ui.settingsOverlay.hidden = true;
+  syncModalState();
+}
+
+async function saveSettingsFromModal() {
+  const reminderTime = normalizeReminderTime(ui.morningReminderTimeInput.value);
+  if (!reminderTime) {
+    showToast("Pick a valid morning reminder time.");
+    return;
+  }
+
+  setMorningReminderTime(state.profile, reminderTime);
+  saveState();
+  closeSettingsModal();
+  showToast(`Morning reminder set for ${formatTime12(reminderTime)}.`);
+
+  if (pushSubscription) {
+    await syncPushSubscription({ allowSubscribe: false });
+  }
+}
+
 function openStatsModal() {
   renderStatsModal();
   ui.statsOverlay.hidden = false;
@@ -1046,7 +1202,7 @@ function closeStatsModal() {
 }
 
 function syncModalState() {
-  const anyModalVisible = !ui.previewOverlay.hidden || !ui.statsOverlay.hidden;
+  const anyModalVisible = !ui.previewOverlay.hidden || !ui.statsOverlay.hidden || !ui.settingsOverlay.hidden;
   document.body.classList.toggle("modal-open", anyModalVisible);
 }
 
@@ -1553,12 +1709,14 @@ function checkForNewDay() {
     return;
   }
 
+  leaveGuardAttempts = 0;
   const previousDateKey = currentDateKey;
   currentDateKey = latest;
   ensureDaySpace();
   render();
   closeDayPreview();
   closeStatsModal();
+  closeSettingsModal();
 
   const active = state.profile;
   const previousDay = state.days[previousDateKey];
@@ -1585,10 +1743,21 @@ function checkReminderAlerts() {
   }
 
   const active = state.profile;
+  const userDay = day.users[active];
   const tasks = getVisibleTasks(day.users[active].tasks);
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   let changed = false;
+
+  const morningReminderTime = getMorningReminderTime(active);
+  if (userDay.lastMorningReminderDate !== currentDateKey) {
+    const morningReminderMinutes = toMinutes(morningReminderTime);
+    if (nowMinutes >= morningReminderMinutes) {
+      userDay.lastMorningReminderDate = currentDateKey;
+      changed = true;
+      notifyMorningReminder(active, morningReminderTime);
+    }
+  }
 
   tasks.forEach((task) => {
     if (!task.reminderTime || task.done) {
@@ -1599,8 +1768,8 @@ function checkReminderAlerts() {
       return;
     }
 
-    const dueMinutes = toMinutes(task.reminderTime);
-    if (dueMinutes > nowMinutes) {
+    const taskReminderMinutes = toMinutes(task.reminderTime) - TASK_REMINDER_LEAD_MINUTES;
+    if (taskReminderMinutes < 0 || taskReminderMinutes > nowMinutes) {
       return;
     }
 
@@ -1614,18 +1783,36 @@ function checkReminderAlerts() {
   }
 }
 
+function notifyMorningReminder(userId, reminderTime) {
+  const timeText = formatTime12(reminderTime);
+  showToast(`${timeText}: add your tasks for today.`);
+
+  if (!shouldUseLocalNotificationFallback()) {
+    return;
+  }
+
+  new Notification(`${USER_META[userId].name} morning reminder`, {
+    body: `${timeText} - write your daily tasks.`,
+    tag: `${currentDateKey}-${userId}-morning`,
+  });
+}
+
 function notifyTaskReminder(task, userId) {
   const timeText = formatTime12(task.reminderTime);
-  showToast(`${timeText} reminder: ${task.text}`);
+  showToast(`${timeText} is coming up: ${task.text}`);
 
-  if (!("Notification" in window) || Notification.permission !== "granted") {
+  if (!shouldUseLocalNotificationFallback()) {
     return;
   }
 
   new Notification(`${USER_META[userId].name} reminder`, {
-    body: `${timeText} time to start: ${task.text}`,
+    body: `Start ${task.text} in ${TASK_REMINDER_LEAD_MINUTES} minutes. Good luck.`,
     tag: `${currentDateKey}-${task.id}`,
   });
+}
+
+function shouldUseLocalNotificationFallback() {
+  return "Notification" in window && Notification.permission === "granted" && !pushSubscription;
 }
 
 function showToastSequence(messages) {
@@ -1665,6 +1852,38 @@ function showToast(message) {
   toastTimer = setTimeout(() => {
     ui.toast.classList.remove("show");
   }, 1650);
+}
+
+function handleBeforeUnload(event) {
+  if (!shouldBlockLeaveAttempt()) {
+    return undefined;
+  }
+
+  const message = LEAVE_GUARD_MESSAGES[Math.min(leaveGuardAttempts, LEAVE_GUARD_MESSAGES.length - 1)];
+  leaveGuardAttempts += 1;
+
+  setTimeout(() => {
+    if (!document.hidden) {
+      showToast(message);
+    }
+  }, 50);
+
+  event.preventDefault();
+  event.returnValue = message;
+  return message;
+}
+
+function shouldBlockLeaveAttempt() {
+  const day = getDay();
+  if (!day || day.closed) {
+    return false;
+  }
+
+  if (countUserTasks(day, state.profile) > 0) {
+    return false;
+  }
+
+  return leaveGuardAttempts < LEAVE_GUARD_MESSAGES.length;
 }
 
 function buildDefaultReminderTime() {
@@ -1805,9 +2024,11 @@ function startRemoteSyncWatcher() {
 async function bootstrapRemoteState() {
   const remotePayload = await fetchRemoteState();
   const remoteDays = getRemoteDaysPayload(remotePayload);
+  const remoteSettings = getRemoteSettingsPayload(remotePayload);
   const hasRemoteDays = remoteDays && Object.keys(remoteDays).length > 0;
+  const hasRemoteSettings = Boolean(remoteSettings);
 
-  if (hasRemoteDays) {
+  if (hasRemoteDays || hasRemoteSettings) {
     applyRemotePayload(remotePayload);
     return;
   }
@@ -1857,7 +2078,12 @@ async function syncWithServerNow(options = {}) {
         Accept: "application/json",
       },
       cache: "no-store",
-      body: JSON.stringify({ days: state.days }),
+      body: JSON.stringify({
+        days: state.days,
+        settings: {
+          morningReminderTimes: state.preferences.morningReminderTimes,
+        },
+      }),
     });
 
     if (!response.ok) {
@@ -1903,17 +2129,35 @@ function applyRemotePayload(payload) {
   }
 
   const normalizedDays = normalizeDaysMap(remoteDays);
-  if (areDayMapsEqual(state.days, normalizedDays)) {
+  const remoteReminderTimes = getRemoteSettingsPayload(payload);
+  const normalizedReminderTimes = remoteReminderTimes
+    ? normalizeMorningReminderTimes(remoteReminderTimes)
+    : null;
+
+  const daysChanged = !areDayMapsEqual(state.days, normalizedDays);
+  const settingsChanged = normalizedReminderTimes
+    ? !areReminderTimeMapsEqual(state.preferences.morningReminderTimes, normalizedReminderTimes)
+    : false;
+
+  if (!daysChanged && !settingsChanged) {
     return;
   }
 
-  state.days = normalizedDays;
+  if (daysChanged) {
+    state.days = normalizedDays;
+  }
+
+  if (settingsChanged) {
+    state.preferences.morningReminderTimes = normalizedReminderTimes;
+  }
+
   const daySpaceChanged = ensureDaySpace({ sync: false });
   persistLocalState(JSON.parse(JSON.stringify(state)));
 
   render();
   updateCountdownChips();
   checkReminderAlerts();
+  void syncPushSubscription({ allowSubscribe: false });
 
   if (daySpaceChanged) {
     queueRemoteSync();
@@ -1957,6 +2201,22 @@ function getRemoteDaysPayload(payload) {
   return payload;
 }
 
+function getRemoteSettingsPayload(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+
+  if (!payload.settings || typeof payload.settings !== "object") {
+    return null;
+  }
+
+  if (!payload.settings.morningReminderTimes || typeof payload.settings.morningReminderTimes !== "object") {
+    return null;
+  }
+
+  return payload.settings.morningReminderTimes;
+}
+
 function normalizeDaysMap(value) {
   const normalized = {};
 
@@ -1975,6 +2235,12 @@ function areDayMapsEqual(a, b) {
   return serializeDays(a) === serializeDays(b);
 }
 
+function areReminderTimeMapsEqual(a, b) {
+  const left = normalizeMorningReminderTimes(a);
+  const right = normalizeMorningReminderTimes(b);
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 function serializeDays(days) {
   const ordered = {};
   Object.keys(days)
@@ -1986,14 +2252,174 @@ function serializeDays(days) {
   return JSON.stringify(ordered);
 }
 
-function registerServiceWorker() {
+async function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) {
+    return null;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.register("./service-worker.js");
+    await navigator.serviceWorker.ready;
+    return registration;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function isPushSupported() {
+  return "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
+}
+
+async function enablePushNotifications() {
+  if (!isPushSupported()) {
+    showToast("Push notifications are not supported on this device.");
+    renderSettings();
     return;
   }
 
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./service-worker.js").catch(() => {
-      // Ignore offline registration errors in dev.
+  if (!swRegistration) {
+    swRegistration = await registerServiceWorker();
+  }
+
+  if (!swRegistration) {
+    showToast("Service worker is not ready yet.");
+    renderSettings();
+    return;
+  }
+
+  let permission = Notification.permission;
+  if (permission !== "granted") {
+    permission = await Notification.requestPermission();
+  }
+
+  if (permission !== "granted") {
+    showToast("Push permission was not granted.");
+    renderSettings();
+    return;
+  }
+
+  await syncPushSubscription({ allowSubscribe: true });
+
+  if (pushSubscription) {
+    showToast("Push notifications enabled.");
+  }
+}
+
+async function syncPushSubscription(options = {}) {
+  if (!isPushSupported() || !swRegistration) {
+    pushSubscription = null;
+    renderSettings();
+    return null;
+  }
+
+  const allowSubscribe = options.allowSubscribe === true;
+  let subscription = await swRegistration.pushManager.getSubscription();
+
+  if (!subscription && allowSubscribe && Notification.permission === "granted") {
+    subscription = await ensurePushSubscription();
+  }
+
+  pushSubscription = subscription || null;
+
+  if (pushSubscription) {
+    await sendPushSubscriptionToServer(pushSubscription);
+  }
+
+  renderSettings();
+  return pushSubscription;
+}
+
+async function ensurePushSubscription() {
+  const publicKey = await fetchPushPublicKey();
+  if (!publicKey) {
+    return null;
+  }
+
+  try {
+    return await swRegistration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
     });
-  });
+  } catch (_error) {
+    showToast("Unable to create push subscription.");
+    return null;
+  }
+}
+
+async function fetchPushPublicKey() {
+  try {
+    const response = await fetch(API_PUSH_PUBLIC_KEY_ENDPOINT, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = await response.json();
+    return typeof payload.publicKey === "string" ? payload.publicKey : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function sendPushSubscriptionToServer(subscription) {
+  try {
+    const response = await fetch(API_PUSH_SUBSCRIBE_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      cache: "no-store",
+      body: JSON.stringify({
+        userId: state.profile,
+        morningReminderTime: getMorningReminderTime(state.profile),
+        timeZone: getBrowserTimeZone(),
+        subscription: subscription.toJSON ? subscription.toJSON() : subscription,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorPayload = await safeReadJson(response);
+      if (errorPayload && typeof errorPayload.error === "string") {
+        showToast(errorPayload.error);
+      }
+    }
+  } catch (_error) {
+    showToast("Unable to sync push settings.");
+  }
+}
+
+async function safeReadJson(response) {
+  try {
+    return await response.json();
+  } catch (_error) {
+    return null;
+  }
+}
+
+function getBrowserTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch (_error) {
+    return "UTC";
+  }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = `${base64String}${padding}`
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i += 1) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+
+  return outputArray;
 }

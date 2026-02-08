@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1290" height="2796" viewBox="0 0 1290 2796" role="img" aria-label="My baby Waby I Love you">
+  <rect width="1290" height="2796" fill="#1fd3e8"/>
+
+  <text x="120" y="300" fill="#16e20f" font-size="230" font-family="Marker Felt, Comic Sans MS, Bradley Hand, cursive">My</text>
+  <text x="370" y="300" fill="#16e20f" font-size="230" font-family="Marker Felt, Comic Sans MS, Bradley Hand, cursive">baby</text>
+  <text x="820" y="300" fill="#16e20f" font-size="230" font-family="Marker Felt, Comic Sans MS, Bradley Hand, cursive">Waby</text>
+
+  <path d="M645 2080C420 1920 220 1690 220 1370C220 1145 375 980 560 980C630 980 700 1015 645 1165C590 1015 660 980 730 980C915 980 1070 1145 1070 1370C1070 1690 870 1920 645 2080Z" fill="#ff1919"/>
+
+  <path d="M180 520c-50-64-150-40-150 52 0 67 58 108 150 200 92-92 150-133 150-200 0-92-100-116-150-52z" fill="none" stroke="#ff8a95" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M210 940c-58-74-176-48-176 60 0 78 72 125 176 229 104-104 176-151 176-229 0-108-118-134-176-60z" fill="none" stroke="#ff00de" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M1080 940c-58-74-176-48-176 60 0 78 72 125 176 229 104-104 176-151 176-229 0-108-118-134-176-60z" fill="none" stroke="#ff00de" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M980 1320c-40-52-120-32-120 36 0 50 46 82 120 156 74-74 120-106 120-156 0-68-80-88-120-36z" fill="none" stroke="#ffd300" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M360 1680c-40-52-120-32-120 36 0 50 46 82 120 156 74-74 120-106 120-156 0-68-80-88-120-36z" fill="none" stroke="#ffd300" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M1030 1620c-50-64-150-40-150 52 0 67 58 108 150 200 92-92 150-133 150-200 0-92-100-116-150-52z" fill="none" stroke="#ff8a95" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <text x="120" y="2480" fill="#1634ff" font-size="245" font-family="Marker Felt, Comic Sans MS, Bradley Hand, cursive">I Love You!</text>
+</svg>

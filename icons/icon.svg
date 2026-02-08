@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Our Day icon">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffe6d0"/>
+      <stop offset="100%" stop-color="#f7c8a8"/>
+    </linearGradient>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff9f2"/>
+      <stop offset="100%" stop-color="#fff0e1"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="120" fill="url(#bg)"/>
+  <circle cx="418" cy="112" r="56" fill="#f9e3cf" opacity="0.82"/>
+  <circle cx="92" cy="402" r="74" fill="#d9eadf" opacity="0.74"/>
+  <rect x="96" y="126" width="320" height="260" rx="44" fill="url(#tile)"/>
+  <rect x="126" y="184" width="182" height="26" rx="13" fill="#f2d2ba"/>
+  <rect x="126" y="236" width="238" height="26" rx="13" fill="#f2d2ba"/>
+  <rect x="126" y="288" width="152" height="26" rx="13" fill="#f2d2ba"/>
+  <circle cx="332" cy="306" r="52" fill="#e06858"/>
+  <path d="M309 306l16 15 31-35" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="13"/>
+  <path d="M219 411c-32-20-68-47-68-83 0-22 17-39 39-39 15 0 25 8 31 18 6-10 16-18 31-18 22 0 39 17 39 39 0 36-36 63-68 83h-4z" fill="#e77c64"/>
+</svg>

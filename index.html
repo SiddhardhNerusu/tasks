@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Our Daily Milestones</title>
+
+  <meta name="theme-color" content="#1fd3e8" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Our Day" />
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/love-cover-180.png" />
+  <link rel="apple-touch-startup-image" href="icons/love-launch-1290x2796.png" />
+  <link rel="apple-touch-startup-image" href="icons/love-launch-1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="icons/love-launch-1290x2796.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="icons/love-launch-1290x2796.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="icons/love-launch-1290x2796.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="icons/love-launch-1290x2796.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="apple-touch-startup-image" href="icons/love-launch-1290x2796.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="bg-orb orb-a" aria-hidden="true"></div>
+  <div class="bg-orb orb-b" aria-hidden="true"></div>
+  <div id="watermarkLayer" class="watermark-layer" aria-hidden="true"></div>
+
+  <main class="app">
+    <header class="panel hero">
+      <p id="todayDate" class="today-date"></p>
+      <p id="daysOnFire" class="days-on-fire"></p>
+
+      <div class="profile-switch" role="tablist" aria-label="Choose profile">
+        <button class="profile-btn" data-action="switch-profile" data-profile="me" role="tab" aria-selected="true">Siddu</button>
+        <button class="profile-btn" data-action="switch-profile" data-profile="partner" role="tab" aria-selected="false">Sumi</button>
+      </div>
+    </header>
+
+    <section class="panel composer composer-main">
+      <div class="section-head">
+        <h2>Add for today</h2>
+        <span id="limitHint" class="muted"></span>
+      </div>
+      <div class="input-row">
+        <input id="taskInput" type="text" maxlength="52" placeholder="e.g. gym, laundry, study" autocomplete="off" />
+        <button id="addTaskBtn" class="primary-btn">Add</button>
+      </div>
+      <div class="timing-row">
+        <label class="reminder-check">
+          <input id="reminderToggle" type="checkbox" />
+          Set timer
+        </label>
+        <input id="taskTimeInput" type="time" class="time-input" disabled />
+      </div>
+
+      <div class="composer-divider" aria-hidden="true"></div>
+
+      <div class="section-head linked-head">
+        <h2 id="myTasksTitle">My Tasks</h2>
+        <span id="myTaskCount" class="count-pill"></span>
+      </div>
+      <ul id="myTasks" class="task-list task-list-linked"></ul>
+    </section>
+
+    <section class="panel week-panel">
+      <div class="section-head calendar-head">
+        <h2 id="calendarTitle">This Week</h2>
+        <div class="calendar-meta">
+          <span id="weekRange" class="muted"></span>
+          <button id="calendarExpandBtn" class="soft-btn" data-action="toggle-calendar-view">Expand to Month</button>
+        </div>
+      </div>
+      <div id="calendarViewport" class="calendar-viewport"></div>
+      <div class="legend">
+        <span><i class="dot green"></i>all tasks</span>
+        <span><i class="dot amber"></i>some tasks</span>
+        <span><i class="dot red"></i>none</span>
+      </div>
+    </section>
+
+    <section class="panel tasks-panel partner-panel">
+      <div class="section-head">
+        <h2 id="partnerTasksTitle">Partner Tasks</h2>
+        <span id="partnerSnapshot" class="count-pill muted">0/0 done</span>
+      </div>
+      <ul id="partnerTasks" class="task-list"></ul>
+    </section>
+
+    <section class="panel recap">
+      <div class="section-head">
+        <h2>Recap</h2>
+        <button id="viewStatsBtn" class="soft-btn" data-action="open-stats">View Stats</button>
+      </div>
+      <div id="recapGrid" class="recap-grid"></div>
+      <p id="dailyMessage" class="message-line"></p>
+      <p id="weekMessage" class="message-line"></p>
+    </section>
+  </main>
+
+  <div id="previewOverlay" class="preview-overlay" hidden>
+    <article class="preview-card" role="dialog" aria-modal="true" aria-labelledby="previewDate">
+      <button class="preview-close" data-action="close-day-preview" aria-label="Close day preview">✕</button>
+      <p id="previewDate" class="preview-date"></p>
+      <div id="previewBody" class="preview-body"></div>
+      <p class="preview-hint">Tap outside this card to return.</p>
+    </article>
+  </div>
+
+  <div id="statsOverlay" class="preview-overlay" hidden>
+    <article class="preview-card stats-card" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
+      <button class="preview-close" data-action="close-stats" aria-label="Close stats">✕</button>
+      <p id="statsTitle" class="preview-date">Weekly Stats</p>
+      <div id="statsBody" class="stats-body"></div>
+      <p class="preview-hint">Tap outside this card to return.</p>
+    </article>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

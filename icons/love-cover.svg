@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="My baby Waby I Love you">
+  <rect width="1024" height="1024" fill="#1fd3e8"/>
+
+  <text x="120" y="140" fill="#16e20f" font-size="120" font-family="Marker Felt, Comic Sans MS, Bradley Hand, cursive">My</text>
+  <text x="320" y="140" fill="#16e20f" font-size="120" font-family="Marker Felt, Comic Sans MS, Bradley Hand, cursive">baby</text>
+  <text x="650" y="140" fill="#16e20f" font-size="120" font-family="Marker Felt, Comic Sans MS, Bradley Hand, cursive">Waby</text>
+
+  <path d="M512 760C380 666 270 554 270 402C270 306 338 240 420 240C470 240 506 266 512 320C518 266 554 240 604 240C686 240 754 306 754 402C754 554 644 666 512 760Z" fill="#ff1919"/>
+
+  <path d="M160 230c-22-28-67-18-67 22 0 29 27 48 67 88 40-40 67-59 67-88 0-40-45-50-67-22z" fill="none" stroke="#ff8a95" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M170 430c-30-38-90-25-90 30 0 40 36 66 90 120 54-54 90-80 90-120 0-55-60-68-90-30z" fill="none" stroke="#ff00de" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M820 430c-30-38-90-25-90 30 0 40 36 66 90 120 54-54 90-80 90-120 0-55-60-68-90-30z" fill="none" stroke="#ff00de" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M780 560c-20-26-60-16-60 18 0 25 25 40 60 75 35-35 60-50 60-75 0-34-40-44-60-18z" fill="none" stroke="#ffd300" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M220 720c-20-26-60-16-60 18 0 25 25 40 60 75 35-35 60-50 60-75 0-34-40-44-60-18z" fill="none" stroke="#ffd300" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M830 680c-24-31-72-20-72 23 0 31 30 50 72 92 42-42 72-61 72-92 0-43-48-54-72-23z" fill="none" stroke="#ff8a95" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <text x="120" y="905" fill="#1634ff" font-size="140" font-family="Marker Felt, Comic Sans MS, Bradley Hand, cursive">I Love You!</text>
+</svg>

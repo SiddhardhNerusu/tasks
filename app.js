@@ -1,6 +1,7 @@
 const API_STATE_ENDPOINT = "/api/state";
 const API_PUSH_PUBLIC_KEY_ENDPOINT = "/api/push/public-key";
 const API_PUSH_SUBSCRIBE_ENDPOINT = "/api/push/subscribe";
+const API_PUSH_DISPATCH_ENDPOINT = "/api/push/dispatch";
 const REMOTE_PUSH_DEBOUNCE_MS = 320;
 const REMOTE_POLL_MS = 4500;
 
@@ -75,6 +76,7 @@ let hasShownSyncUnavailableToast = false;
 let swRegistration = null;
 let pushSubscription = null;
 let leaveGuardAttempts = 0;
+let pushDispatchTimer = null;
 
 initApp();
 
@@ -92,8 +94,8 @@ async function initApp() {
   startRemoteSyncWatcher();
   startDayWatcher();
   startReminderWatcher();
+  startClientPushDispatcher();
   checkReminderAlerts();
-  registerServiceWorker();
 }
 
 function bindEvents() {
@@ -229,6 +231,7 @@ function bindEvents() {
     checkReminderAlerts();
     pullRemoteState({ force: true });
     void syncPushSubscription({ allowSubscribe: false });
+    void dispatchPushReminders();
   });
 
   document.addEventListener("visibilitychange", () => {
@@ -237,6 +240,7 @@ function bindEvents() {
       checkReminderAlerts();
       pullRemoteState({ force: true });
       void syncPushSubscription({ allowSubscribe: false });
+      void dispatchPushReminders();
     }
   });
 
@@ -1668,6 +1672,20 @@ function startReminderWatcher() {
   setInterval(checkReminderAlerts, 30000);
 }
 
+function startClientPushDispatcher() {
+  if (pushDispatchTimer) {
+    clearInterval(pushDispatchTimer);
+  }
+
+  pushDispatchTimer = setInterval(() => {
+    if (!document.hidden) {
+      void dispatchPushReminders();
+    }
+  }, 90000);
+
+  void dispatchPushReminders();
+}
+
 function startCountdownTicker() {
   if (countdownTicker) {
     clearInterval(countdownTicker);
@@ -2390,6 +2408,20 @@ async function sendPushSubscriptionToServer(subscription) {
     }
   } catch (_error) {
     showToast("Unable to sync push settings.");
+  }
+}
+
+async function dispatchPushReminders() {
+  try {
+    await fetch(API_PUSH_DISPATCH_ENDPOINT, {
+      method: "GET",
+      headers: {
+        "x-client-dispatch": "1",
+      },
+      cache: "no-store",
+    });
+  } catch (_error) {
+    // Keep the app responsive if dispatch is unavailable.
   }
 }
 

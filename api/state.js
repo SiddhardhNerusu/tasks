@@ -4,7 +4,7 @@ const STATE_KEY = "our-day-shared-state-v1";
 const config = {
   api: {
     bodyParser: {
-      sizeLimit: "1mb",
+      sizeLimit: "25mb",
     },
   },
 };

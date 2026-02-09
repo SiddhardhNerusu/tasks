@@ -22,7 +22,6 @@ const SWIPE_DELETE_THRESHOLD = 84;
 const DEFAULT_MORNING_REMINDER_TIME = "09:00";
 const TASK_REMINDER_LEAD_MINUTES = 10;
 const MAX_REACTION_MESSAGE_CHARS = 120;
-const MAX_REACTION_IMAGE_BYTES = 900 * 1024;
 const LEAVE_GUARD_MESSAGES = [
   "are you sure? this will make you more productive",
   "are you reallyyyyy sure",
@@ -128,11 +127,6 @@ function bindEvents() {
 
     if (action === "toggle-task") {
       toggleTask(actionEl.dataset.owner, actionEl.dataset.taskId);
-      return;
-    }
-
-    if (action === "send-reaction-message") {
-      sendReactionMessage(actionEl.dataset.owner, actionEl.dataset.taskId);
       return;
     }
 
@@ -243,11 +237,12 @@ function bindEvents() {
       return;
     }
 
-    if (event.key === "Enter" && event.target.classList.contains("reaction-message-input")) {
+    if ((event.key === "Enter" || event.key === "Done") && event.target.classList.contains("reaction-message-input")) {
       event.preventDefault();
-      const button = event.target.closest(".task-actions").querySelector("[data-action='send-reaction-message']");
-      if (button) {
-        sendReactionMessage(button.dataset.owner, button.dataset.taskId);
+      const owner = event.target.dataset.owner;
+      const taskId = event.target.dataset.taskId;
+      if (owner && taskId) {
+        sendReactionMessage(owner, taskId);
       }
     }
   });
@@ -793,13 +788,8 @@ async function handleReactionImageSelect(owner, taskId, fileInput) {
     return;
   }
 
-  if (file.size > MAX_REACTION_IMAGE_BYTES) {
-    showToast("Image too large. Keep it under 900 KB.");
-    return;
-  }
-
   const dataUrl = await readFileAsDataUrl(file);
-  if (!dataUrl || dataUrl.length > MAX_REACTION_IMAGE_BYTES * 2) {
+  if (!dataUrl) {
     showToast("Image could not be processed.");
     return;
   }
@@ -1304,33 +1294,31 @@ function renderTaskList(root, tasks, owner, dayClosed) {
       input.type = "text";
       input.className = "reaction-message-input";
       input.maxLength = MAX_REACTION_MESSAGE_CHARS;
-      input.placeholder = "Type your reaction";
+      input.placeholder = "Type your reaction and press done";
+      input.setAttribute("enterkeyhint", "done");
       input.dataset.owner = owner;
       input.dataset.taskId = task.id;
       input.disabled = dayClosed;
       actions.appendChild(input);
-
-      const send = document.createElement("button");
-      send.type = "button";
-      send.className = "reaction-btn";
-      send.dataset.action = "send-reaction-message";
-      send.dataset.owner = owner;
-      send.dataset.taskId = task.id;
-      send.textContent = "Send";
-      send.disabled = dayClosed;
-      actions.appendChild(send);
 
       const photoWrap = document.createElement("span");
       photoWrap.className = "reaction-photo-wrap";
 
       const photo = document.createElement("button");
       photo.type = "button";
-      photo.className = "reaction-btn";
+      photo.className = "reaction-btn reaction-camera-btn";
       photo.dataset.action = "open-reaction-image-picker";
       photo.dataset.owner = owner;
       photo.dataset.taskId = task.id;
-      photo.textContent = "Photo";
+      photo.setAttribute("aria-label", "Send photo reaction");
+      photo.title = "Send photo reaction";
       photo.disabled = dayClosed;
+
+      const cameraIcon = document.createElement("span");
+      cameraIcon.className = "camera-icon";
+      cameraIcon.setAttribute("aria-hidden", "true");
+      photo.appendChild(cameraIcon);
+
       photoWrap.appendChild(photo);
 
       const imageInput = document.createElement("input");

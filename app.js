@@ -1618,17 +1618,25 @@ function getVisibleTasks(tasks) {
   return tasks.filter((task) => !task.deletedAt);
 }
 
-function didCompleteAllTasks(day, userId) {
-  if (!day || !day.closed) {
+function didCompleteAllTasks(day, userId, options = {}) {
+  const includeOpenDay = options.includeOpenDay === true;
+
+  if (!day) {
+    return false;
+  }
+
+  if (!day.closed && !includeOpenDay) {
     return false;
   }
 
   const total = countUserTasks(day, userId);
-  if (total === 0) {
+  const done = countDoneTasks(day, userId);
+
+  if (total === 0 || done === 0) {
     return false;
   }
 
-  return countDoneTasks(day, userId) === total;
+  return done === total;
 }
 
 function getOrderedTasks(tasks) {
@@ -1658,16 +1666,19 @@ function calculateCurrentStreak(userId) {
   let streak = 0;
   let cursor = parseDateKey(currentDateKey);
   const today = state.days[currentDateKey];
+  const shouldCountToday = didCompleteAllTasks(today, userId, { includeOpenDay: true });
 
-  if (!today || !today.closed) {
+  // Keep the previous streak visible until today's board is fully completed.
+  if (!shouldCountToday) {
     cursor = addDays(cursor, -1);
   }
 
   while (true) {
     const dateKey = getDateKey(cursor);
     const day = state.days[dateKey];
+    const includeOpenDay = dateKey === currentDateKey;
 
-    if (!didCompleteAllTasks(day, userId)) {
+    if (!didCompleteAllTasks(day, userId, { includeOpenDay })) {
       break;
     }
 
